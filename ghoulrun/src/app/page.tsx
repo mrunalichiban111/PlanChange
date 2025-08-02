@@ -107,7 +107,7 @@ const GhostGame = () => {
 
       // Timer and stake display
       const seconds = Math.floor(elapsed);
-      context.fillStyle = "purple";
+      context.fillStyle = "white";
       context.font = "20px Arial";
       context.fillText(`Time: ${seconds}s`, 30, 40);
       context.fillText(`Stake: ${stake + Math.floor(seconds / 10)} tokens`, 30, 70);
