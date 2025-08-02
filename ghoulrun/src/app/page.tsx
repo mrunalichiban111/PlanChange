@@ -17,6 +17,11 @@ const GhostGame = () => {
     backgroundImage.src = "/images/bg.jpg"; // relative to public folder
     if (!canvas || !context) return;
 
+    const ghostImg = new Image();
+    ghostImg.src = "/images/bhoot.png";
+
+
+
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
@@ -25,8 +30,11 @@ const GhostGame = () => {
     let gravity = 1.5;
     let isJumping = false;
     let ghostX = 100; // Position further from the left
+    let flyingObstacles: { x: number; y: number; width: number; height: number }[] = [];
 
-    let obstacles: { x: number; width: number; height: number }[] = [];
+    let obstacles: {
+      fillStyle: string; x: number; width: number; height: number
+    }[] = [];
     let obstacleSpawnInterval = 2000;
     let lastSpawn = Date.now();
 
@@ -36,7 +44,10 @@ const GhostGame = () => {
     const spawnObstacle = () => {
       const height = 50 + Math.random() * 50;
       const width = 20 + Math.random() * 30;
-      obstacles.push({ x: canvas.width, width, height });
+      obstacles.push({
+        x: canvas.width, width, height,
+        fillStyle: ""
+      });
     };
 
     let jumps = 0;
@@ -69,15 +80,14 @@ const GhostGame = () => {
         velocityY = 0;
         jumps = 0; // reset jumps once landed
       }
-      context.fillStyle = "blue";
-      context.beginPath();
-      context.arc(ghostX, ghostY, 25, 0, Math.PI * 2);
-      context.fill();
+      context.drawImage(ghostImg, ghostX - 32, ghostY - 32, 80, 80); // Adjust size/offset as needed
 
-      // Obstacles
-      context.fillStyle = "#8b0000";
+      const speed = 5 + Math.floor(elapsed / 10); // speed increases every 10 seconds
+
       obstacles = obstacles.map((obstacle) => {
-        obstacle.x -= 5;
+
+        obstacle.fillStyle = "red";
+        obstacle.x -= speed;
         context.fillRect(
           obstacle.x,
           canvas.height - 100 - obstacle.height,
@@ -86,6 +96,36 @@ const GhostGame = () => {
         );
         return obstacle;
       }).filter(obstacle => obstacle.x + obstacle.width > 0);
+
+      if (elapsed > 20 && Math.random() < 0.01) { // low chance spawn
+        const width = 40;
+        const height = 40;
+        const y = canvas.height - 200 - Math.random() * 100;
+        flyingObstacles.push({ x: canvas.width, y, width, height });
+      }
+
+      context.fillStyle = "#ff69b4"; // pinkish ghost
+
+      flyingObstacles = flyingObstacles.map((fo) => {
+        fo.x -= speed;
+        context.fillRect(fo.x, fo.y, fo.width, fo.height);
+        return fo;
+      }).filter((fo) => fo.x + fo.width > 0);
+
+      for (let fo of flyingObstacles) {
+        if (
+          ghostX + 25 > fo.x &&
+          ghostX - 25 < fo.x + fo.width &&
+          ghostY + 25 > fo.y &&
+          ghostY - 25 < fo.y + fo.height
+        ) {
+          setIsRunning(false);
+          cancelAnimationFrame(animationFrameId);
+          return;
+        }
+      }
+
+
 
       if (Date.now() - lastSpawn > obstacleSpawnInterval) {
         spawnObstacle();
@@ -142,15 +182,28 @@ const GhostGame = () => {
   return (
     <div className="w-full h-screen relative">
       {!isRunning && (
-        <Button
-          className="absolute z-10 left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2"
-          onClick={() => setIsRunning(true)}
+        <div
+          className="absolute top-0 left-0 w-full h-full bg-cover bg-center flex flex-col items-center justify-center z-10"
+          style={{ backgroundImage: "url('/images/start.jpg')" }} // put your welcome screen background here
         >
-          Start Game
-        </Button>
+          <h1 className="text-5xl md:text-7xl text-white font-bold drop-shadow-lg mb-8 text-center spooky-font">
+            Welcome to <br /> Spooky Stake
+          </h1>
+          <Button
+            className="px-8 py-4 text-lg bg-purple-700 hover:bg-purple-800 text-white shadow-xl rounded-xl"
+            onClick={() => setIsRunning(true)}
+          >
+            Start Game
+          </Button>
+        </div>
       )}
-      <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
+
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 w-full h-full z-0"
+      />
     </div>
+
   );
 };
 
