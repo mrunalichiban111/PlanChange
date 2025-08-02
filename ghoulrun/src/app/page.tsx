@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import WalletConnect from "../components/WalletConnect";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
-import {GameLogicAbi } from "../contracts/contracts";
+import { GameLogicAbi } from "../contracts/contracts";
 import { claimCheckpoint } from "../contracts/functions";
-import {  readContract, waitForTransactionReceipt } from "@wagmi/core";
-import {config} from "../contracts/lib/wagmi"
+import { readContract, waitForTransactionReceipt } from "@wagmi/core";
+import { config } from "../contracts/lib/wagmi"
 import { CONTRACT_ADDRESS } from "../contracts/contracts";
 
 const CONTRACT_ADDR = CONTRACT_ADDRESS.GameLogic as `0x${string}`;
@@ -21,20 +21,25 @@ const GhostGame = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [stake, setStake] = useState(0.01); // in ETH
   const [startTime, setStartTime] = useState<number | null>(null);
-
+  const [timeSurvived, setTimeSurvived] = useState(0);
   const { address, isConnected } = useAccount();
   const { writeContract, data: txHash } = useWriteContract();
   const { isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
-    const [lastCheckpoint, setLastCheckpoint] = useState<number | null>(null); // 🆕 new state
+  const [lastCheckpoint, setLastCheckpoint] = useState<number | null>(null); // 🆕 new state
+  const spookyMusic = typeof Audio !== "undefined" ? new Audio("/sounds/spooky.mp3") : null;
+    if (spookyMusic) {
+        spookyMusic.loop = true;
+        spookyMusic.volume = 0.5;
+    }
 
-    
-    
-    
-    
-    
-    
-  
+
+
+
+
+
+
+
   const handleStartGame = () => {
     writeContract({
       abi: GameLogicAbi,
@@ -66,85 +71,128 @@ const GhostGame = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
-    const bgImg = new Image();
-    bgImg.src = "/images/bg.jpg";
+    const backgroundImage = new window.Image();
+    backgroundImage.src = "/images/bg.jpg"; // relative to public folder
+    if (!canvas || !context) return;
+
     const ghostImg = new Image();
     ghostImg.src = "/images/bhoot.png";
 
-    if (!canvas || !context) return;
+    const obstacleImg = new Image();
+    obstacleImg.src = "/images/grave.png"; // adjust to your image path
+
+    const flyingObstacleImage = new Image();
+    flyingObstacleImage.src = '/images/bat.png';
+
+
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
     let ghostY = canvas.height - 150;
     let velocityY = 0;
-    const gravity = 1.5;
-    const ghostX = 100;
+    let gravity = 1.5;
+    let isJumping = false;
+    let ghostX = 100; // Position further from the left
+    let flyingObstacles: { x: number; y: number; width: number; height: number }[] = [];
+
+    let obstacles: {
+      fillStyle: string; x: number; width: number; height: number
+    }[] = [];
+    let obstacleSpawnInterval = 2000;
+    let lastSpawn = Date.now();
+
+    let startTime: number;
+    let animationFrameId: number;
+
+    const spawnObstacle = () => {
+      const height = 50 + Math.random() * 50;
+      const width = 20 + Math.random() * 30;
+      obstacles.push({
+        x: canvas.width, width, height,
+        fillStyle: ""
+      });
+    };
+
     let jumps = 0;
     const maxJumps = 2;
-    let animationFrameId: number;
-    let obstacles: any[] = [];
-    let flyingObstacles: any[] = [];
-    let lastSpawn = Date.now();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && jumps < maxJumps) {
-        velocityY = -22 + jumps * -4;
+        velocityY = -22 + jumps * -4; // second jump is slightly weaker
         jumps++;
       }
     };
 
     const gameLoop = (timestamp: number) => {
-      if (!startTime) return;
+      if (!startTime) startTime = timestamp;
       const elapsed = (timestamp - startTime) / 1000;
 
-      context.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      context.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+      // Ground
       context.fillStyle = "#444";
       context.fillRect(0, canvas.height - 100, canvas.width, 100);
 
-      velocityY += gravity * 0.6;
+      // Ghost
+      velocityY += gravity * 0.6; // less gravity for a floatier arc
       ghostY += velocityY;
 
+      // Collision with ground
       if (ghostY > canvas.height - 150) {
         ghostY = canvas.height - 150;
         velocityY = 0;
-        jumps = 0;
+        jumps = 0; // reset jumps once landed
+      }
+      context.drawImage(ghostImg, ghostX - 32, ghostY - 32, 80, 80); // Adjust size/offset as needed
+
+      const speed = 5 + Math.floor(elapsed / 10); // speed increases every 10 seconds
+
+      obstacles = obstacles.map((obstacle) => {
+        obstacle.x -= speed;
+
+        if (obstacleImg.complete) {
+          context.drawImage(
+            obstacleImg,
+            obstacle.x,
+            canvas.height - 100 - obstacle.height,
+            obstacle.width - 80,
+            obstacle.height
+          );
+        } else {
+          context.fillStyle = "red";
+          context.fillRect(
+            obstacle.x,
+            canvas.height - 100 - obstacle.height,
+            obstacle.width,
+            obstacle.height
+          );
+        }
+
+        return obstacle;
+      }).filter(obstacle => obstacle.x + obstacle.width > 0);
+
+
+      if (elapsed > 10 && Math.random() < 0.01) { // low chance spawn
+        const width = 60;
+        const height = 50;
+        const y = canvas.height - 450 - Math.random() * 100;
+        flyingObstacles.push({ x: canvas.width, y, width, height });
       }
 
-      context.drawImage(ghostImg, ghostX - 32, ghostY - 32, 80, 80);
+      flyingObstacles = flyingObstacles.map((fo) => {
+        fo.x -= speed;
 
-      const speed = 5 + Math.floor(elapsed / 10);
-
-      obstacles = obstacles
-        .map((o) => {
-          o.x -= speed;
-          context.fillStyle = "red";
-          context.fillRect(o.x, canvas.height - 100 - o.height, o.width, o.height);
-          return o;
-        })
-        .filter((o) => o.x + o.width > 0);
-
-      flyingObstacles = flyingObstacles
-        .map((fo) => {
-          fo.x -= speed;
+        if (flyingObstacleImage.complete) {
+          context.drawImage(flyingObstacleImage, fo.x, fo.y, fo.width, fo.height);
+        } else {
+          // fallback shape if image isn't loaded
           context.fillStyle = "#ff69b4";
           context.fillRect(fo.x, fo.y, fo.width, fo.height);
-          return fo;
-        })
-        .filter((fo) => fo.x + fo.width > 0);
-
-      for (let o of obstacles) {
-        if (
-          ghostX + 25 > o.x &&
-          ghostX - 25 < o.x + o.width &&
-          ghostY + 25 > canvas.height - 100 - o.height
-        ) {
-          setIsRunning(false);
-          handleLose();
-          cancelAnimationFrame(animationFrameId);
-          return;
         }
-      }
+
+        return fo;
+      }).filter((fo) => fo.x + fo.width > 0);
 
       for (let fo of flyingObstacles) {
         if (
@@ -154,35 +202,72 @@ const GhostGame = () => {
           ghostY - 25 < fo.y + fo.height
         ) {
           setIsRunning(false);
-          handleLose();
           cancelAnimationFrame(animationFrameId);
           return;
         }
       }
 
-      if (lastCheckpoint === null || elapsed - lastCheckpoint >= 10) {
-        claimCheckpoint();
-        setLastCheckpoint(elapsed);
+
+
+      if (Date.now() - lastSpawn > obstacleSpawnInterval) {
+        spawnObstacle();
+
+        // After 35s, 30% chance to spawn a second obstacle close behind
+        if ((performance.now() - startTime) / 1000 > 35 && Math.random() < 0.3) {
+          setTimeout(() => {
+            spawnObstacle();
+          }, 300); // slight delay between the two
         }
 
-      if (Date.now() - lastSpawn > 2000) {
-        const height = 50 + Math.random() * 50;
-        const width = 20 + Math.random() * 30;
-        obstacles.push({ x: canvas.width, width, height });
+        // ⬇️ Gradually decrease the interval to make game harder
+        const elapsedSeconds = (performance.now() - startTime) / 1000;
+        obstacleSpawnInterval = Math.max(500, 2000 - elapsedSeconds * 15);
+
         lastSpawn = Date.now();
       }
 
+      // Collision Detection
+      for (let obs of obstacles) {
+        if (
+          ghostX + 25 > obs.x &&
+          ghostX - 25 < obs.x + obs.width &&
+          ghostY + 25 > canvas.height - 100 - obs.height
+        ) {
+          setIsRunning(false);
+          cancelAnimationFrame(animationFrameId);
+          return;
+        }
+      }
+
+      // Timer and stake display
+      const seconds = Math.floor(elapsed);
       context.fillStyle = "white";
       context.font = "20px Arial";
-      context.fillText(`Time: ${Math.floor(elapsed)}s`, 30, 40);
-      context.fillText(`Stake: ${stake} ETH`, 30, 70);
+      context.fillText(`Time: ${seconds}s`, 30, 40);
+      context.fillText(`Stake: ${stake + Math.floor(seconds / 10)} tokens`, 30, 70);
 
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 
-    if (isRunning) {
+    const startGame = () => {
+      if (spookyMusic && spookyMusic.paused) {
+        spookyMusic.play().catch(err => console.warn("Audio play blocked:", err));
+      }
+      setIsRunning(true);
+      setTimeSurvived(0);
+      setStake(0.01);
+      obstacles = [];
+      ghostY = canvas.height - 150;
+      velocityY = 0;
+      isJumping = false;
+      startTime = performance.now();
+      lastSpawn = Date.now();
       window.addEventListener("keydown", handleKeyDown);
       animationFrameId = requestAnimationFrame(gameLoop);
+    };
+
+    if (isRunning) {
+      startGame();
     }
 
     return () => {
@@ -190,7 +275,6 @@ const GhostGame = () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isRunning]);
-
 
   return (
     <div className="w-full h-screen relative">
@@ -210,7 +294,7 @@ const GhostGame = () => {
               className="px-8 py-4 text-lg bg-purple-700 hover:bg-purple-800 text-white shadow-xl rounded-xl"
               onClick={handleStartGame}
             >
-              Start Game (Stake {stake} ETH)
+              Start Game (Stake {stake} MON)
             </Button>
           ) : (
             <p className="text-white text-lg">Connect your wallet to play</p>
