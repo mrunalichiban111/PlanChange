@@ -1,0 +1,4 @@
+export const CONTRACT_ADDRESS = {
+    UserRegister: "68c9Eeabf5d77f91912F24d77f2c5869B7797DFb",
+    GameLogic: "3729fc063d278d481FD75B65c2cEF54F55Bd7bd1"
+}
