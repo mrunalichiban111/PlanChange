@@ -97,10 +97,10 @@ const GhostGame = () => {
         return obstacle;
       }).filter(obstacle => obstacle.x + obstacle.width > 0);
 
-      if (elapsed > 20 && Math.random() < 0.01) { // low chance spawn
+      if (elapsed > 10 && Math.random() < 0.01) { // low chance spawn
         const width = 40;
         const height = 40;
-        const y = canvas.height - 200 - Math.random() * 100;
+        const y = canvas.height - 500 - Math.random() * 100;
         flyingObstacles.push({ x: canvas.width, y, width, height });
       }
 
